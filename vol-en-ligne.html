@@ -1,0 +1,21 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vol en ligne · Virtual Airlines</title><link rel="stylesheet" href="css/style.css"></head><body>
+<div class="app"><aside class="sidebar"><a class="brand" href="index.html"><div class="brand-mark">✈</div><div><strong>VIRTUAL</strong><small>AIRLINES</small></div></a><nav class="nav"><a class="" href="index.html"><span>🏠</span> <span>Accueil</span></a>
+<a class="" href="compagnie.html"><span>✈️</span> <span>Compagnie</span></a>
+<a class="" href="flotte.html"><span>🛩️</span> <span>Flotte</span></a>
+<a class="" href="destinations.html"><span>🌍</span> <span>Destinations</span></a>
+<a class="" href="vols.html"><span>📅</span> <span>Programme des vols</span></a>
+<a class="active" href="live-map.html"><span>🟢</span> <span>Live Map</span></a>
+<a class="" href="pilotes.html"><span>👨‍✈️</span> <span>Pilotes</span></a>
+<a class="" href="statistiques.html"><span>📊</span> <span>Statistiques</span></a>
+<a class="" href="classement.html"><span>🏆</span> <span>Classement</span></a>
+<a class="" href="actualites.html"><span>📰</span> <span>Actualités</span></a>
+<a class="" href="espace-pilote.html"><span>👤</span> <span>Espace pilote</span></a>
+<a class="" href="simbrief.html"><span>🧭</span> <span>Plan de vol</span></a>
+<a class="" href="rapports.html"><span>📝</span> <span>Rapports</span></a>
+<a class="" href="connexion.html"><span>🔐</span> <span>Connexion</span></a></nav></aside>
+<main class="content"><header class="topbar"><div class="clocks">UTC <b data-utc>--:--</b> · LOCAL <b data-local>--:--</b></div></header><div class="container"><div class="page-title"><h1>Vol en ligne</h1><p id="vatsimStatus" class="muted">Connexion aux données VATSIM…</p></div><div class="map-tools"><button class="btn secondary">Tous</button><button class="btn secondary">Ma VA</button><button class="btn secondary">Trafic VATSIM</button><button class="btn secondary">ATC</button></div><div id="map" class="map"></div><div class="section grid"><div class="card"><h2>ATC en direct</h2><p>Les contrôleurs, leurs positions et fréquences seront affichés ici à partir des données VATSIM.</p></div><div class="card"><h2>Un avion</h2><p>Cliquez sur un appareil pour afficher pilote, départ, arrivée, altitude, vitesse et route.</p></div></div></div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const map=L.map('map').setView([30,5],2);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+fetch('https://data.vatsim.net/v3/vatsim-data.json').then(r=>r.json()).then(d=>d.pilots.forEach(p=>{if(p.latitude&&p.longitude)L.marker([p.latitude,p.longitude]).addTo(map).bindPopup(`<b>${p.callsign||'Pilote'}</b><br>${p.flight_plan?.departure||'?'} → ${p.flight_plan?.arrival||'?'}<br>Altitude: ${p.altitude||'?'} ft`)})).catch(()=>{});
+</script><footer class="footer">Virtual Airlines · Projet V1 · CGU · Mentions légales · Contact</footer></main></div>
+<script src="js/config.js"></script><script src="js/v4.js"></script></body></html>
