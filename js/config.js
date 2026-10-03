@@ -1,7 +1,6 @@
 window.VA_CONFIG = {
-  // Pour activer le vrai backend Supabase, renseigne ces deux valeurs.
-  // Laisse vides pour utiliser le mode démo local.
-  supabaseUrl: '',
-  supabaseAnonKey: '',
-  demoMode: true
+  name: "Virtual Airlines",
+  // Les vols de la compagnie ont un indicatif du type VA342
+  vaPrefix: "VA",
+  vatsimUrl: "https://data.vatsim.net/v3/vatsim-data.json"
 };
