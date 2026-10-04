@@ -1,146 +1,21 @@
-/* Logique du site en mode démo : les données restent dans le navigateur (localStorage).
-   Pour un vrai site multi-pilotes, il faudra une base de données côté serveur. */
-(function () {
-  const C = window.VA_CONFIG || {};
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const on = (s, ev, fn) => { const e = $(s); if (e) e.addEventListener(ev, fn); };
-  const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch (e) { return d; } };
-  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const rank = h => h >= 300 ? "Commandant" : h >= 100 ? "Premier officier" : h >= 25 ? "Second officier" : "Cadet";
-  const vatsim = () => fetch(C.vatsimUrl).then(r => r.json());
-
-  async function hash(s) {
-    if (!(window.crypto && crypto.subtle)) return "p:" + s;
-    const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("va:" + s));
-    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
-  }
-  async function users() {
-    let u = load("va_users", null);
-    if (!u) {
-      u = [{ id: "VA001", name: "Pilote Démo", email: "demo@virtualairlines.local", pass: await hash("demo123"), simbrief: "", role: "admin", flights: 48, hours: 342, miles: 184560 }];
-      save("va_users", u);
-    }
-    return u;
-  }
-  async function me() {
-    const e = load("va_session", null);
-    return e ? (await users()).find(u => u.email === e) || null : null;
-  }
-
-  function clocks() {
-    const p = n => String(n).padStart(2, "0");
-    const f = () => {
-      const d = new Date();
-      $$("[data-utc]").forEach(e => e.textContent = p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()));
-      $$("[data-local]").forEach(e => e.textContent = p(d.getHours()) + ":" + p(d.getMinutes()));
-    };
-    f(); setInterval(f, 15000);
-  }
-
-  function profile(u) {
-    const set = (sel, v) => $$(sel).forEach(e => e.textContent = v);
-    if (!u) {
-      set("[data-user-name]", "pilote");
-      $$("[data-auth]").forEach(e => e.innerHTML = '<a href="connexion.html">Connexion</a>');
-      return;
-    }
-    const first = u.name.split(" ")[0];
-    set("[data-user-name]", first); set("[data-profile-name]", first);
-    set("[data-profile-email]", u.email);
-    set("[data-stat-hours]", u.hours + " h"); set("[data-stat-flights]", u.flights);
-    set("[data-stat-miles]", u.miles.toLocaleString("fr-FR")); set("[data-rank]", rank(u.hours));
-    $$("[data-profile-simbrief]").forEach(i => i.value = u.simbrief || "");
-    $$("[data-auth]").forEach(e => e.innerHTML = esc(u.email) + ' · <a href="#" data-logout>Déconnexion</a>');
-  }
-
-  function renderReports(u) {
-    const t = $("#myReports"); if (!t) return;
-    const r = u ? load("va_reports", []).filter(x => x.pilot === u.email) : [];
-    t.innerHTML = r.length ? r.map(x => `<tr><td>${esc(x.flight)}</td><td>${esc(x.date)}</td><td>${esc(x.from)} → ${esc(x.to)}</td><td>${esc(x.aircraft)}</td><td>${esc(x.duration)} h</td><td><span class="badge">${esc(x.status)}</span></td><td>${esc(x.id)}</td></tr>`).join("") : '<tr><td colspan="7">Aucun rapport pour le moment.</td></tr>';
-  }
-
-  function renderBookings(u) {
-    const t = $("#bookingRows"); if (!t) return;
-    if (!u) { $("#bookingMsg").innerHTML = '<div class="notice">Connectez-vous pour voir vos réservations. <a href="connexion.html">Connexion</a></div>'; return; }
-    const b = load("va_bookings", []).filter(x => x.pilot === u.email);
-    t.innerHTML = b.length ? b.map(x => `<tr><td>${esc(x.date)}</td><td>${esc(x.flight)}</td><td>${esc(x.from)} → ${esc(x.to)}</td><td>${esc(x.aircraft)}</td><td><span class="badge">${esc(x.status)}</span></td><td><button class="filter" data-cancel="${esc(x.flight)}|${esc(x.date)}">Annuler</button></td></tr>`).join("") : '<tr><td colspan="6">Aucune réservation. Choisissez un vol dans le programme.</td></tr>';
-  }
-
-  function admin(u, us) {
-    const t = $("#adminUsers"); if (!t) return;
-    const set = (sel, v) => $$(sel).forEach(e => e.textContent = v);
-    if (!u || u.role !== "admin") {
-      t.closest("section").innerHTML = '<p>Accès réservé au staff. <a href="connexion.html">Connexion</a></p>';
-      return;
-    }
-    set("[data-admin-pilots]", us.length);
-    set("[data-admin-bookings]", load("va_bookings", []).length);
-    set("[data-admin-reports]", load("va_reports", []).filter(r => r.status === "En attente").length);
-    t.innerHTML = us.map(x => `<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${esc(x.email)}</td><td>${esc(rank(x.hours))}</td><td>${esc(x.flights)}</td><td>${esc(x.hours)} h</td><td>${esc(x.role)}</td></tr>`).join("");
-  }
-
-  async function init() {
-    clocks();
-    const us = await users(), u = await me();
-    profile(u); renderReports(u); renderBookings(u); admin(u, us);
-
-    document.addEventListener("click", async e => {
-      if (e.target.closest("[data-logout]")) { e.preventDefault(); localStorage.removeItem("va_session"); location.href = "connexion.html"; return; }
-      const c = e.target.closest("[data-cancel]");
-      if (c) { const [f, d] = c.dataset.cancel.split("|"); save("va_bookings", load("va_bookings", []).filter(x => !(x.flight === f && x.date === d && x.pilot === (u && u.email)))); renderBookings(u); return; }
-      const b = e.target.closest("[data-book-flight]");
-      if (b) {
-        if (!u) { alert("Connectez-vous pour réserver un vol."); location.href = "connexion.html"; return; }
-        const d = b.dataset, bk = load("va_bookings", []);
-        if (!bk.some(x => x.pilot === u.email && x.flight === d.bookFlight && x.date === d.date))
-          bk.push({ pilot: u.email, flight: d.bookFlight, date: d.date, from: d.from, to: d.to, aircraft: d.aircraft, status: "Confirmée" });
-        save("va_bookings", bk); location.href = "reservations.html";
-      }
-    });
-
-    on("#loginForm", "submit", async e => {
-      e.preventDefault();
-      const f = new FormData(e.target), h = await hash(f.get("password"));
-      const found = us.find(x => x.email === f.get("email").trim().toLowerCase() && x.pass === h);
-      if (!found) { $("#loginMsg").textContent = "E-mail ou mot de passe incorrect."; return; }
-      save("va_session", found.email); location.href = "espace-pilote.html";
-    });
-
-    on("#registerForm", "submit", async e => {
-      e.preventDefault();
-      const f = new FormData(e.target), email = f.get("email").trim().toLowerCase(), m = $("#registerMsg");
-      if (us.some(x => x.email === email)) { m.textContent = "Cet e-mail est déjà utilisé."; return; }
-      us.push({ id: "VA" + String(us.length + 1).padStart(3, "0"), name: f.get("name").trim(), email, pass: await hash(f.get("password")), simbrief: f.get("simbrief") || "", role: "pilot", flights: 0, hours: 0, miles: 0 });
-      save("va_users", us); save("va_session", email);
-      m.textContent = "Compte créé. Redirection…"; setTimeout(() => location.href = "espace-pilote.html", 700);
-    });
-
-    on("#reportForm", "submit", e => {
-      e.preventDefault();
-      const m = $("#reportMsg");
-      if (!u) { m.innerHTML = 'Connectez-vous pour envoyer un rapport. <a href="connexion.html">Connexion</a>'; return; }
-      const f = Object.fromEntries(new FormData(e.target)), r = load("va_reports", []);
-      r.push({ id: "R" + Date.now().toString(36).toUpperCase(), pilot: u.email, flight: f.flight.toUpperCase(), date: f.date, from: f.from.toUpperCase(), to: f.to.toUpperCase(), aircraft: f.aircraft, duration: +f.duration, status: "En attente" });
-      save("va_reports", r); e.target.reset(); m.textContent = "Rapport envoyé. Il est en attente de validation."; renderReports(u);
-    });
-
-    on("[data-profile-simbrief]", "change", e => { if (!u) return; u.simbrief = e.target.value.trim(); save("va_users", us); });
-
-    on("#simbriefForm", "submit", e => {
-      e.preventDefault();
-      const f = Object.fromEntries(new FormData(e.target)), types = { A350: "A359", A380: "A388" };
-      const from = f.from.toUpperCase(), to = f.to.toUpperCase();
-      const url = "https://dispatch.simbrief.com/options/custom?" + new URLSearchParams({ orig: from, dest: to, type: types[f.aircraft] || f.aircraft });
-      $("#simOut").innerHTML = "Plan prêt : " + esc(from) + " → " + esc(to) + " (" + esc(f.aircraft) + '). <a href="' + esc(url) + '" target="_blank" rel="noopener">Ouvrir SimBrief</a>';
-    });
-
-    if ($("#pilotRows")) vatsim().then(d => {
-      $("#pilotRows").innerHTML = d.pilots.slice(0, 30).map(p => `<tr><td>${esc(p.callsign)}</td><td>${esc(p.name)}</td><td>${esc(p.flight_plan && p.flight_plan.departure || "-")}</td><td>${esc(p.flight_plan && p.flight_plan.arrival || "-")}</td><td>${esc(p.altitude)} ft</td></tr>`).join("");
-    }).catch(() => { $("#pilotRows").innerHTML = '<tr><td colspan="5">Données VATSIM indisponibles.</td></tr>'; });
-  }
-
-  window.VA = { vatsim, esc };
-  init();
-})();
+const VA_DB='va-v4-demo-db';
+const VA_SESSION='va-v4-session';
+const seedV4={users:[{id:'PIL001',name:'Sébastien',email:'demo@virtualairlines.local',password:'demo123',simbrief:'',rank:'Commandant de bord',hours:342,flights:48,miles:184560,xp:1240,role:'pilot'}],reports:[{id:'RPT001',userId:'PIL001',flight:'VA342',date:'2026-10-02',from:'LFPG',to:'CYUL',aircraft:'B789',duration:7.2,distance:3440,status:'Validé'}],bookings:[{id:'BKG001',userId:'PIL001',flight:'VA458',date:'2026-10-06',from:'LFPG',to:'KJFK',aircraft:'A359',status:'Réservé'}],news:[{title:'V4 ouverte en prévisualisation',date:'03 oct. 2026',tag:'Projet'},{title:'Live Map VATSIM améliorée',date:'02 oct. 2026',tag:'Réseau'},{title:'Nouveau programme long-courrier',date:'30 sept. 2026',tag:'VA'}]};
+function v4db(){try{return JSON.parse(localStorage.getItem(VA_DB))||structuredClone(seedV4)}catch{return structuredClone(seedV4)}}
+function saveV4(d){localStorage.setItem(VA_DB,JSON.stringify(d))}
+if(!localStorage.getItem(VA_DB))saveV4(seedV4);
+function currentUser(){const id=localStorage.getItem(VA_SESSION);return v4db().users.find(u=>u.id===id)||null}
+function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function msg(el,text,ok=false){if(el){el.className='notice '+(ok?'success':'');el.textContent=text}}
+function syncUser(){const u=currentUser();document.querySelectorAll('[data-user-name]').forEach(e=>e.textContent=u?.name||'Visiteur');document.querySelectorAll('[data-auth]').forEach(e=>e.innerHTML=u?`<span class="badge">${esc(u.rank)}</span> <button class="btn secondary" data-v4-logout>Déconnexion</button>`:`<a class="btn" href="connexion.html">Connexion</a>`);document.querySelectorAll('[data-v4-logout]').forEach(b=>b.onclick=()=>{localStorage.removeItem(VA_SESSION);location.href='index.html'});return u}
+function clocks(){const d=new Date();document.querySelectorAll('[data-utc]').forEach(e=>e.textContent=d.toISOString().slice(11,16)+' UTC');document.querySelectorAll('[data-local]').forEach(e=>e.textContent=d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))}setInterval(clocks,1000);clocks();syncUser();
+function protect(){if(document.body.dataset.auth==='required'&&!currentUser())location.href='connexion.html'}protect();
+const login=document.querySelector('#loginForm');if(login)login.onsubmit=e=>{e.preventDefault();const f=new FormData(login),email=f.get('email').trim().toLowerCase(),password=f.get('password'),d=v4db(),u=d.users.find(x=>x.email===email&&x.password===password);if(!u)return msg(document.querySelector('#loginMsg'),'E-mail ou mot de passe incorrect.');localStorage.setItem(VA_SESSION,u.id);location.href='espace-pilote.html'};
+const register=document.querySelector('#registerForm');if(register)register.onsubmit=e=>{e.preventDefault();const f=new FormData(register),d=v4db(),email=f.get('email').trim().toLowerCase();if(d.users.some(x=>x.email===email))return msg(document.querySelector('#registerMsg'),'Cette adresse est déjà utilisée.');const u={id:'PIL'+String(d.users.length+1).padStart(3,'0'),name:f.get('name').trim(),email,password:f.get('password'),simbrief:f.get('simbrief')?.trim()||'',rank:'Cadet',hours:0,flights:0,miles:0,xp:0,role:'pilot'};d.users.push(u);saveV4(d);localStorage.setItem(VA_SESSION,u.id);msg(document.querySelector('#registerMsg'),'Compte créé. Bienvenue dans la compagnie !',true);setTimeout(()=>location.href='espace-pilote.html',400)};
+function renderUserStats(){const u=currentUser();if(!u)return;document.querySelectorAll('[data-stat-hours]').forEach(e=>e.textContent=u.hours+' h');document.querySelectorAll('[data-stat-flights]').forEach(e=>e.textContent=u.flights);document.querySelectorAll('[data-stat-miles]').forEach(e=>e.textContent=u.miles.toLocaleString('fr-FR'));document.querySelectorAll('[data-rank]').forEach(e=>e.textContent=u.rank);document.querySelectorAll('[data-xp]').forEach(e=>e.textContent=u.xp+' XP');document.querySelectorAll('[data-profile-name]').forEach(e=>e.textContent=u.name);document.querySelectorAll('[data-profile-email]').forEach(e=>e.textContent=u.email)}renderUserStats();
+function renderBookings(){const u=currentUser(),tbody=document.querySelector('#bookingRows');if(!tbody)return;const rows=v4db().bookings.filter(b=>!u||b.userId===u.id);tbody.innerHTML=rows.length?rows.map(b=>`<tr><td>${esc(b.date)}</td><td><b>${esc(b.flight)}</b></td><td>${esc(b.from)} → ${esc(b.to)}</td><td>${esc(b.aircraft)}</td><td><span class="badge">${esc(b.status)}</span></td><td><button class="filter" data-cancel="${b.id}">Annuler</button></td></tr>`).join(''):'<tr><td colspan="6">Aucune réservation.</td></tr>';tbody.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>{const d=v4db();d.bookings=d.bookings.filter(x=>x.id!==b.dataset.cancel);saveV4(d);renderBookings();msg(document.querySelector('#bookingMsg'),'Réservation annulée.',true)})}
+function setupBookings(){document.querySelectorAll('[data-book-flight]').forEach(b=>b.onclick=()=>{const u=currentUser();if(!u)return location.href='connexion.html';const d=v4db();if(d.bookings.some(x=>x.userId===u.id&&x.flight===b.dataset.bookFlight))return msg(document.querySelector('#bookingMsg'),'Ce vol est déjà réservé.');d.bookings.push({id:'BKG'+Date.now(),userId:u.id,flight:b.dataset.bookFlight,date:b.dataset.date,from:b.dataset.from,to:b.dataset.to,aircraft:b.dataset.aircraft,status:'Réservé'});saveV4(d);msg(document.querySelector('#bookingMsg'),'Vol réservé avec succès.',true);renderBookings()})}setupBookings();renderBookings();
+const report=document.querySelector('#reportForm');if(report)report.onsubmit=e=>{e.preventDefault();const u=currentUser();if(!u)return location.href='connexion.html';const f=new FormData(report),d=v4db(),duration=Number(f.get('duration'))||0;d.reports.unshift({id:'RPT'+Date.now(),userId:u.id,flight:f.get('flight').toUpperCase(),date:f.get('date'),from:f.get('from').toUpperCase(),to:f.get('to').toUpperCase(),aircraft:f.get('aircraft'),duration,distance:Math.round(duration*480),status:'En attente'});saveV4(d);msg(document.querySelector('#reportMsg'),'Rapport transmis à l’administration pour validation.',true);report.reset();renderReports()};
+function renderReports(){const u=currentUser(),body=document.querySelector('#myReports');if(!body)return;const rows=v4db().reports.filter(r=>!u||r.userId===u.id);body.innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.flight)}</td><td>${esc(r.date)}</td><td>${esc(r.from)} → ${esc(r.to)}</td><td>${esc(r.aircraft)}</td><td>${r.duration} h</td><td>${r.distance||'-'} NM</td><td><span class="badge">${esc(r.status)}</span></td></tr>`).join(''):'<tr><td colspan="7">Aucun rapport.</td></tr>'}renderReports();
+const sim=document.querySelector('#simbriefForm');if(sim)sim.onsubmit=e=>{e.preventDefault();const f=new FormData(sim),from=f.get('from').toUpperCase(),to=f.get('to').toUpperCase(),ac=f.get('aircraft'),alt=f.get('altitude');if(!from||!to)return msg(document.querySelector('#simOut'),'Départ et arrivée sont obligatoires.');const dist=Math.max(300,Math.round(3200+(to.charCodeAt(0)-from.charCodeAt(0))*37));const hrs=(dist/470+1).toFixed(1);document.querySelector('#simOut').innerHTML=`<b>${from} → ${to}</b><br>Avion : ${esc(ac)} · Niveau : ${esc(alt)} · Distance estimée : ${dist} NM · ETE : ${hrs} h<br><small>Mode V4 démo : le vrai OFP SimBrief sera généré après connexion de l’API.</small>`;document.querySelector('#simOut').className='notice success'};
+function admin(){const body=document.querySelector('#adminUsers');if(!body)return;const d=v4db();body.innerHTML=d.users.map(u=>`<tr><td>${esc(u.id)}</td><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.rank)}</td><td>${u.flights}</td><td>${u.hours} h</td><td>${esc(u.role)}</td></tr>`).join('');document.querySelector('[data-admin-reports]').textContent=d.reports.filter(r=>r.status==='En attente').length;document.querySelector('[data-admin-bookings]').textContent=d.bookings.length;document.querySelector('[data-admin-pilots]').textContent=d.users.length}admin();

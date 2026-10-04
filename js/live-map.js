@@ -1,55 +1,8 @@
-(function () {
-  const el = document.getElementById("liveMap");
-  if (!el || !window.L || !window.VA) return;
-  const C = window.VA_CONFIG || {}, esc = VA.esc;
-  const vaRe = new RegExp("^" + (C.vaPrefix || "VA") + "\\d", "i");
-  const isVA = p => vaRe.test(p.callsign || "");
-  const $ = id => document.getElementById(id);
-
-  const map = L.map(el, { preferCanvas: true }).setView([40, 10], 3);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
-  const layer = L.layerGroup().addTo(map);
-  let data = null, filter = "all", q = "";
-
-  function select(p) {
-    const fp = p.flight_plan || {};
-    $("selectedAircraft").innerHTML = `<h2>${esc(p.callsign)}</h2><p class="muted">${esc(p.name)}</p>
-      <p><b>${esc(fp.departure || "?")}</b> → <b>${esc(fp.arrival || "?")}</b></p>
-      <p>Appareil : ${esc(fp.aircraft_short || "?")}<br>Altitude : ${esc(p.altitude)} ft<br>Vitesse sol : ${esc(p.groundspeed)} kt<br>Cap : ${esc(p.heading)}°</p>`;
-  }
-
-  function draw() {
-    layer.clearLayers();
-    if (!data || filter === "atc") return;
-    data.pilots.forEach(p => {
-      const v = isVA(p);
-      if (filter === "va" && !v) return;
-      if (filter === "pilot" && v) return;
-      if (q && !((p.callsign || "") + " " + ((p.flight_plan || {}).departure || "") + " " + ((p.flight_plan || {}).arrival || "")).toLowerCase().includes(q)) return;
-      L.circleMarker([p.latitude, p.longitude], { radius: v ? 6 : 3, color: v ? "#2ea043" : "#3b82f6", weight: 1, fillOpacity: .8 })
-        .on("click", () => select(p)).addTo(layer);
-    });
-  }
-
-  function refresh() {
-    VA.vatsim().then(d => {
-      data = d;
-      const atc = d.controllers.filter(c => c.facility > 0 && !/ATIS/.test(c.callsign));
-      $("vatsimStatus").textContent = d.pilots.length + " pilotes · " + atc.length + " contrôleurs";
-      $("nearbyAtc").innerHTML = atc.slice(0, 12).map(c => `<div><b>${esc(c.callsign)}</b> · ${esc(c.frequency)}</div>`).join("") || '<p class="muted">Aucun contrôleur en ligne.</p>';
-      draw();
-    }).catch(() => { $("vatsimStatus").textContent = "Données VATSIM indisponibles."; });
-  }
-
-  document.querySelectorAll(".filter[data-filter]").forEach(b => b.addEventListener("click", () => {
-    document.querySelectorAll(".filter[data-filter]").forEach(x => x.classList.remove("active"));
-    b.classList.add("active"); filter = b.dataset.filter; draw();
-  }));
-  $("liveSearch").addEventListener("input", e => { q = e.target.value.trim().toLowerCase(); draw(); });
-  $("centerMe").addEventListener("click", () => {
-    const pts = data ? data.pilots.filter(isVA).map(p => [p.latitude, p.longitude]) : [];
-    pts.length ? map.fitBounds(pts, { maxZoom: 6 }) : map.setView([46, 2], 5);
-  });
-
-  refresh(); setInterval(refresh, 60000);
-})();
+const liveMap=L.map('liveMap',{worldCopyJump:true}).setView([42,8],3);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(liveMap);const layers={va:L.layerGroup().addTo(liveMap),pilot:L.layerGroup().addTo(liveMap),atc:L.layerGroup().addTo(liveMap)};let aircraft=[],controllers=[],markers=[],routeLines=[];let activeFilter='all';
+function icon(type){const c=type==='va'?'#22e37b':type==='atc'?'#ff9f1c':'#48a7ff';return L.divIcon({className:'plane-marker',html:`<span style="background:${c}">✈</span>`,iconSize:[28,28],iconAnchor:[14,14]})}
+function showDetails(p,type){const box=document.getElementById('selectedAircraft');if(type==='atc'){box.innerHTML=`<h2>🟠 ${escapeHtml(p.callsign||'-')}</h2><p><b>Contrôleur ATC</b></p><p>Fréquence : <b>${escapeHtml(p.frequency||'-')}</b></p><p>Position : ${escapeHtml(p.facility||p.callsign||'-')}</p><span class="badge">En ligne</span>`;return}const fp=p.flight_plan||{};box.innerHTML=`<h2>${type==='va'?'🟢':'🔵'} ${escapeHtml(p.callsign||'-')}</h2><p><b>${escapeHtml(p.name||'Pilote VATSIM')}</b></p><p>${escapeHtml(p.flight_plan?.aircraft_short||p.flight_plan?.aircraft||'Avion')}</p><div class="flight-detail"><b>${escapeHtml(fp.departure||'-')}</b><span>→</span><b>${escapeHtml(fp.arrival||'-')}</b></div><p>Altitude : <b>${Math.round((p.altitude||0)/100)*100 || p.altitude || '-'} ft</b><br>Vitesse : <b>${p.groundspeed||'-'} kt</b><br>Cap : <b>${p.heading||'-'}°</b></p><button class="btn" onclick="liveMap.setView([${p.latitude},${p.longitude}],7)">Centrer sur l’avion</button>`}
+function addAircraft(p,type){if(!p.latitude||!p.longitude)return;const m=L.marker([p.latitude,p.longitude],{icon:icon(type)}).bindTooltip(`${escapeHtml(p.callsign||'-')} · ${type==='va'?'MA VA':'VATSIM'}`);m.on('click',()=>showDetails(p,type));layers[type].addLayer(m);markers.push({m,p,type});const fp=p.flight_plan;if(document.getElementById('routesToggle').checked&&fp&&fp.departure_lat&&fp.departure_lon&&fp.arrival_lat&&fp.arrival_lon){const line=L.polyline([[fp.departure_lat,fp.departure_lon],[p.latitude,p.longitude],[fp.arrival_lat,fp.arrival_lon]],{className:'route-line',weight:type==='va'?3:1.5,dashArray:type==='va'?'8 6':'4 7'});line.addTo(liveMap);routeLines.push(line)}}
+function addAtc(c){if(!c.latitude||!c.longitude)return;const m=L.marker([c.latitude,c.longitude],{icon:L.divIcon({className:'atc-marker',html:'🟠',iconSize:[24,24],iconAnchor:[12,12]})});m.on('click',()=>showDetails(c,'atc'));layers.atc.addLayer(m)}
+function refreshLayers(){Object.values(layers).forEach(x=>x.clearLayers());routeLines.forEach(x=>x.remove());markers=[];routeLines=[];aircraft.forEach(p=>{const isVA=(p.callsign||'').startsWith('VA');if(activeFilter==='all'||(activeFilter==='va'&&isVA)||(activeFilter==='pilot'&&!isVA))addAircraft(p,isVA?'va':'pilot')});if(activeFilter==='all'||activeFilter==='atc')controllers.forEach(addAtc);}
+async function loadLive(){const status=document.getElementById('vatsimStatus');try{const r=await fetch('https://data.vatsim.net/v3/vatsim-data.json',{cache:'no-store'});const d=await r.json();aircraft=d.pilots||[];controllers=d.controllers||[];status.textContent=`🟢 VATSIM connecté · ${aircraft.length} pilotes · ${controllers.length} ATC`;const atc=document.getElementById('nearbyAtc');atc.innerHTML=controllers.slice(0,8).map(c=>`<div class="atc-row"><span>🟠</span><b>${escapeHtml(c.callsign||'-')}</b><small>${escapeHtml(c.frequency||'-')}</small></div>`).join('')||'<p class="muted">Aucun ATC disponible.</p>';refreshLayers()}catch(e){status.textContent='🔴 VATSIM indisponible';document.getElementById('nearbyAtc').innerHTML='<p class="muted">Impossible de charger les données VATSIM depuis ce navigateur.</p>'}}
+document.querySelectorAll('.filter').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeFilter=b.dataset.filter;refreshLayers()}));document.getElementById('routesToggle').addEventListener('change',refreshLayers);document.getElementById('centerMe').addEventListener('click',()=>{const va=aircraft.filter(p=>(p.callsign||'').startsWith('VA')&&p.latitude&&p.longitude);if(va.length)liveMap.fitBounds(va.map(p=>[p.latitude,p.longitude]),{padding:[30,30]})});document.getElementById('liveSearch').addEventListener('input',e=>{const q=e.target.value.toLowerCase();markers.forEach(x=>x.m.setOpacity(!q||(x.p.callsign||'').toLowerCase().includes(q)||(x.p.flight_plan?.departure||'').toLowerCase().includes(q)||(x.p.flight_plan?.arrival||'').toLowerCase().includes(q))?1:0)});loadLive();setInterval(loadLive,15000);

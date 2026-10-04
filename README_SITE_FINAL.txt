@@ -1,47 +1,38 @@
-VIRTUAL AIRLINES — SITE FINAL (VERSION DE TEST LOCAL)
-======================================================
+SITE FINAL — COMPAGNIE VIRTUELLE
+================================
 
-LANCEMENT
-----------
-1. Décompresse tout le ZIP dans un dossier.
-2. Double-clique sur : LANCER_SITE_FINAL.bat
-3. Le navigateur s'ouvre automatiquement sur le site.
-
-Aucune installation de Python ou de Node.js n'est nécessaire.
-Le serveur local utilise PowerShell/Windows déjà présent sur Windows 10/11.
+Cette archive est la version finale FRONT-END prête à être publiée sur GitHub Pages.
 
 IMPORTANT
 ---------
-Laisse la fenêtre noire ouverte pendant le test.
-Pour arrêter le site local, ferme cette fenêtre.
+- Les pages, navigation, réservations, connexion démo, espace pilote, rapports,
+  statistiques, classement, SimBrief de préparation et Live Map sont inclus.
+- Les données de démonstration sont conservées dans le navigateur (localStorage).
+- La Live Map utilise l'API publique VATSIM côté navigateur.
+- La page SimBrief prépare les données mais ne remplace pas encore un backend/API
+  SimBrief authentifié.
+- Une authentification réellement sécurisée, une base de données serveur,
+  Cloudflare Turnstile côté serveur et une validation serveur des vols nécessitent
+  un backend. GitHub Pages ne fournit pas ce backend.
 
-CE QUE CONTIENT CETTE VERSION
------------------------------
-- Accueil / tableau de bord
-- Compagnie
-- Flotte
-- Destinations
-- Programme des vols
-- Réservations
-- Live Map VATSIM
-- Pilotes
-- Statistiques
-- Classement
-- Actualités
-- Espace pilote
-- Préparation SimBrief
-- Rapports de vol
-- Connexion / inscription
-- Administration de démonstration
-- Version responsive PC / téléphone
-- Mode démo local
+PUBLICATION GITHUB PAGES
+------------------------
+1. Décompresser l'archive.
+2. Envoyer TOUT le contenu de ce dossier à la racine de la branche main.
+3. Garder index.html à la racine.
+4. Garder css/ et js/ à la racine.
+5. Dans Settings > Pages : Deploy from a branch > main > / (root).
+6. Attendre le déploiement.
 
-LIMITES À CONNAÎTRE
--------------------
-Cette version est le rendu final de test du site côté interface/front-end.
-Le vrai fonctionnement public et sécurisé nécessite encore un hébergement,
-une base de données, une authentification serveur, les règles de sécurité,
-et les clés/API nécessaires pour les intégrations externes.
+Le fichier .nojekyll évite que GitHub tente de transformer les fichiers statiques
+avec Jekyll.
 
-La Live Map tente de récupérer les données publiques VATSIM depuis le navigateur.
-Une connexion Internet est donc nécessaire pour les cartes et les données VATSIM.
+COMPTE DEMO
+-----------
+Email : demo@virtualairlines.local
+Mot de passe : demo123
+
+FOND
+----
+Le thème sombre est forcé dans le CSS et un fond de secours est présent même si
+l'image distante du hero n'est pas disponible.
